@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  semgrep-linear:
+    build: .
+    container_name: semgrep-linear-integration
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      # Required: Your Linear API key
+      - LINEAR_API_KEY=${LINEAR_API_KEY}
+      # Required: The Linear team ID to create issues in
+      - LINEAR_TEAM_ID=${LINEAR_TEAM_ID}
+      # Optional: Specific project ID for issues
+      - LINEAR_PROJECT_ID=${LINEAR_PROJECT_ID:-}
+      # Optional: Default priority (1=Urgent, 2=High, 3=Medium, 4=Low)
+      - LINEAR_DEFAULT_PRIORITY=${LINEAR_DEFAULT_PRIORITY:-2}
+      # Optional: Semgrep webhook signature secret for verification
+      - SEMGREP_WEBHOOK_SECRET=${SEMGREP_WEBHOOK_SECRET:-}
+      # Optional: Enable debug logging
+      - DEBUG=${DEBUG:-false}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "app.name=semgrep-linear-integration"
+      - "app.description=Semgrep to Linear ticket integration"
+
