@@ -42,7 +42,7 @@
                 radial-gradient(ellipse at center, rgba(86, 212, 221, 0.03) 0%, transparent 70%);
         }
         
-        .wizard-container { width: 100%; max-width: 600px; }
+        .wizard-container { width: 100%; max-width: 650px; }
         
         .wizard-header { text-align: center; margin-bottom: 2rem; }
         
@@ -114,6 +114,7 @@
         .status-message.success { background: rgba(63, 185, 80, 0.1); border: 1px solid rgba(63, 185, 80, 0.3); color: var(--accent-green); }
         .status-message.error { background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.3); color: var(--accent-red); }
         .status-message.loading { background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3); color: var(--accent-primary); }
+        .status-message.info { background: rgba(86, 212, 221, 0.1); border: 1px solid rgba(86, 212, 221, 0.3); color: var(--accent-cyan); }
         
         .selection-grid { display: grid; gap: 0.5rem; max-height: 250px; overflow-y: auto; padding-right: 0.5rem; }
         .selection-grid::-webkit-scrollbar { width: 6px; }
@@ -137,7 +138,7 @@
         .help-link { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; margin-top: 0.5rem; }
         .help-link:hover { text-decoration: underline; }
         
-        .checkbox-group { display: flex; align-items: flex-start; gap: 0.75rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px; cursor: pointer; }
+        .checkbox-group { display: flex; align-items: flex-start; gap: 0.75rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px; cursor: pointer; margin-bottom: 1rem; }
         .checkbox-group input[type="checkbox"] { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent-primary); }
         .checkbox-label { flex: 1; }
         .checkbox-label .title { font-weight: 500; margin-bottom: 0.25rem; }
@@ -161,6 +162,38 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         
         .optional-badge { display: inline-block; padding: 0.15rem 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem; font-weight: 400; }
+        
+        .info-box {
+            background: rgba(86, 212, 221, 0.1); border: 1px solid rgba(86, 212, 221, 0.3);
+            border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;
+        }
+        .info-box .title { color: var(--accent-cyan); font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .info-box .content { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; }
+        
+        .webhook-url-box {
+            background: var(--bg-tertiary); border: 2px solid var(--accent-green);
+            border-radius: 8px; padding: 1rem; margin: 1rem 0;
+        }
+        .webhook-url-box .label { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+        .webhook-url-box .url { 
+            font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; 
+            color: var(--accent-green); word-break: break-all;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .copy-btn {
+            background: var(--accent-primary); color: white; border: none;
+            padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer;
+            font-size: 0.75rem; font-weight: 500; white-space: nowrap;
+        }
+        .copy-btn:hover { opacity: 0.9; }
+        
+        .tunnel-status {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem;
+            background: rgba(63, 185, 80, 0.1); color: var(--accent-green);
+            margin-top: 0.75rem;
+        }
+        .tunnel-status.inactive { background: rgba(210, 153, 34, 0.1); color: var(--accent-orange); }
     </style>
 </head>
 <body>
@@ -173,64 +206,123 @@
             <p class="subtitle">Configure your Semgrep → Linear integration in minutes</p>
         </div>
         
-        <div class="progress-steps">
+        <div class="progress-steps" id="progress-dots">
             <div class="step-dot active" data-step="1"></div>
             <div class="step-dot" data-step="2"></div>
             <div class="step-dot" data-step="3"></div>
             <div class="step-dot" data-step="4"></div>
+            <div class="step-dot" data-step="5"></div>
         </div>
         
         <div class="wizard-card">
-            <!-- Step 1: Linear API Key -->
+            <!-- Step 1: Local Dev / Tunnel Setup -->
             <div class="step active" data-step="1">
+                <div class="step-title">🚇 Local Development Setup</div>
+                <p class="step-description">
+                    Semgrep needs a public URL to send webhooks. We'll create a secure tunnel to your local machine.
+                </p>
+                
+                <div id="step1-status" class="status-message"></div>
+                
+                <div id="tunnel-active-section" style="display: none;">
+                    <div class="info-box">
+                        <div class="title">✅ Tunnel Already Active!</div>
+                        <div class="content">Your ngrok tunnel is running. You can proceed to the next step.</div>
+                    </div>
+                    <div class="webhook-url-box">
+                        <div class="label">Your Public Webhook URL:</div>
+                        <div class="url">
+                            <span id="existing-webhook-url"></span>
+                            <button class="copy-btn" onclick="copyUrl('existing-webhook-url')">Copy</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="tunnel-setup-section">
+                    <div class="info-box">
+                        <div class="title">🔑 ngrok Auth Token Required</div>
+                        <div class="content">
+                            ngrok creates a secure tunnel so Semgrep can reach your local server.<br>
+                            Get your <strong>free token</strong> (takes 30 seconds):
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ngrok-token">ngrok Auth Token</label>
+                        <input type="password" id="ngrok-token" placeholder="2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+                        <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank" class="help-link">
+                            📖 Get your free ngrok token (sign up takes 30 sec)
+                        </a>
+                    </div>
+                    
+                    <div id="tunnel-result" style="display: none;">
+                        <div class="webhook-url-box">
+                            <div class="label">Your Public Webhook URL:</div>
+                            <div class="url">
+                                <span id="new-webhook-url"></span>
+                                <button class="copy-btn" onclick="copyUrl('new-webhook-url')">Copy</button>
+                            </div>
+                        </div>
+                        <div class="tunnel-status">✓ Tunnel is active and ready!</div>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="btn-primary" id="tunnel-btn" onclick="setupTunnel()">Start Tunnel & Continue</button>
+                </div>
+            </div>
+            
+            <!-- Step 2: Linear API Key -->
+            <div class="step" data-step="2">
                 <div class="step-title">🔑 Linear API Key</div>
                 <p class="step-description">Enter your Linear personal API key. This allows the integration to create issues in your workspace.</p>
-                <div id="step1-status" class="status-message"></div>
+                <div id="step2-status" class="status-message"></div>
                 <div class="form-group">
                     <label for="api-key">API Key <span class="label-hint">starts with lin_api_</span></label>
                     <input type="password" id="api-key" placeholder="lin_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
                     <a href="https://linear.app/settings/api" target="_blank" class="help-link">📖 How to get your API key</a>
                 </div>
                 <div class="button-group">
+                    <button class="btn-secondary" onclick="goToStep(1)">Back</button>
                     <button class="btn-primary" onclick="validateApiKey()">Verify & Continue</button>
                 </div>
             </div>
             
-            <!-- Step 2: Select Team -->
-            <div class="step" data-step="2">
+            <!-- Step 3: Select Team -->
+            <div class="step" data-step="3">
                 <div class="step-title">👥 Select Team</div>
                 <p class="step-description">Choose which Linear team should receive the Semgrep security findings.</p>
-                <div id="step2-status" class="status-message"></div>
+                <div id="step3-status" class="status-message"></div>
                 <div class="form-group">
                     <label>Available Teams</label>
                     <div id="teams-list" class="selection-grid"></div>
                 </div>
                 <div class="button-group">
-                    <button class="btn-secondary" onclick="goToStep(1)">Back</button>
+                    <button class="btn-secondary" onclick="goToStep(2)">Back</button>
                     <button class="btn-primary" id="team-continue-btn" onclick="selectTeam()" disabled>Continue</button>
                 </div>
             </div>
             
-            <!-- Step 3: Select Project (Optional) -->
-            <div class="step" data-step="3">
+            <!-- Step 4: Select Project (Optional) -->
+            <div class="step" data-step="4">
                 <div class="step-title">📁 Select Project <span class="optional-badge">Optional</span></div>
                 <p class="step-description">Optionally assign all issues to a specific project. You can skip this to create issues without a project.</p>
-                <div id="step3-status" class="status-message"></div>
+                <div id="step4-status" class="status-message"></div>
                 <div class="form-group">
                     <label>Available Projects</label>
                     <div id="projects-list" class="selection-grid"></div>
                 </div>
                 <div class="button-group">
-                    <button class="btn-secondary" onclick="goToStep(2)">Back</button>
+                    <button class="btn-secondary" onclick="goToStep(3)">Back</button>
                     <button class="btn-primary" onclick="selectProject()">Continue</button>
                 </div>
             </div>
             
-            <!-- Step 4: Webhook Secret -->
-            <div class="step" data-step="4">
+            <!-- Step 5: Security & Save -->
+            <div class="step" data-step="5">
                 <div class="step-title">🔐 Security Settings</div>
                 <p class="step-description">Configure security options for your webhook endpoint.</p>
-                <div id="step4-status" class="status-message"></div>
+                <div id="step5-status" class="status-message"></div>
                 <div class="form-group">
                     <label for="webhook-secret">Webhook Secret <span class="optional-badge">Recommended</span></label>
                     <input type="text" id="webhook-secret" placeholder="Enter a secret or leave empty to auto-generate" autocomplete="off">
@@ -244,26 +336,37 @@
                     </div>
                 </label>
                 <div class="button-group">
-                    <button class="btn-secondary" onclick="goToStep(3)">Back</button>
+                    <button class="btn-secondary" onclick="goToStep(4)">Back</button>
                     <button class="btn-primary" onclick="saveConfiguration()">Save Configuration</button>
                 </div>
             </div>
             
-            <!-- Step 5: Success -->
-            <div class="step" data-step="5">
+            <!-- Step 6: Success -->
+            <div class="step" data-step="6">
                 <div class="success-icon">✓</div>
                 <h2 class="success-title">Setup Complete!</h2>
                 <p class="step-description" style="text-align: center;">Your Semgrep → Linear integration is now configured and ready to use.</p>
+                
+                <div class="webhook-url-box" style="border-color: var(--accent-cyan);">
+                    <div class="label">📋 Use this Webhook URL in Semgrep:</div>
+                    <div class="url">
+                        <span id="final-webhook-url"></span>
+                        <button class="copy-btn" onclick="copyUrl('final-webhook-url')">Copy</button>
+                    </div>
+                </div>
+                
                 <div class="next-steps">
-                    <h3>📋 Next Steps</h3>
+                    <h3>📋 Configure Semgrep Webhook</h3>
                     <ol>
                         <li>Go to <strong>Semgrep AppSec Platform</strong> → Settings → Integrations</li>
                         <li>Click <strong>Add</strong> → Select <strong>Webhook</strong></li>
-                        <li>Enter webhook URL: <code id="webhook-url">http://localhost:8080/webhook</code></li>
+                        <li>Paste the webhook URL above</li>
                         <li id="secret-step" style="display: none;">Set Signature Secret: <code id="display-secret"></code></li>
+                        <li>Click <strong>Subscribe</strong></li>
                         <li>Enable notifications in <strong>Rules → Policies → Rule Modes</strong></li>
                     </ol>
                 </div>
+                
                 <div class="button-group">
                     <button class="btn-primary" onclick="window.location.href='/'">Go to Dashboard</button>
                 </div>
@@ -273,9 +376,55 @@
     
     <script>
         let currentStep = 1;
-        let config = { apiKey: '', teamId: '', teamName: '', projectId: '', projectName: '', webhookSecret: '', debug: false };
+        let totalSteps = 6;
+        let config = { 
+            apiKey: '', teamId: '', teamName: '', projectId: '', projectName: '', 
+            webhookSecret: '', debug: false, ngrokToken: '', webhookUrl: '' 
+        };
         let teams = [];
         let projects = [];
+        let tunnelActive = false;
+        
+        // Check tunnel status on load
+        async function checkTunnelStatus() {
+            try {
+                const response = await fetch('/api/tunnel/status');
+                const data = await response.json();
+                
+                if (data.active && data.webhook_url) {
+                    tunnelActive = true;
+                    config.webhookUrl = data.webhook_url;
+                    document.getElementById('tunnel-setup-section').style.display = 'none';
+                    document.getElementById('tunnel-active-section').style.display = 'block';
+                    document.getElementById('existing-webhook-url').textContent = data.webhook_url;
+                    document.getElementById('tunnel-btn').textContent = 'Continue';
+                } else if (data.ngrok_configured) {
+                    // Token is set but tunnel not started - try to start it
+                    startTunnelWithExistingToken();
+                }
+            } catch (e) {
+                console.error('Error checking tunnel status:', e);
+            }
+        }
+        
+        async function startTunnelWithExistingToken() {
+            try {
+                const response = await fetch('/api/tunnel/start', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    tunnelActive = true;
+                    config.webhookUrl = data.webhook_url;
+                    document.getElementById('tunnel-setup-section').style.display = 'none';
+                    document.getElementById('tunnel-active-section').style.display = 'block';
+                    document.getElementById('existing-webhook-url').textContent = data.webhook_url;
+                    document.getElementById('tunnel-btn').textContent = 'Continue';
+                }
+            } catch (e) {
+                console.error('Error starting tunnel:', e);
+            }
+        }
+        
+        checkTunnelStatus();
         
         function updateStepDots() {
             document.querySelectorAll('.step-dot').forEach(dot => {
@@ -301,12 +450,68 @@
         
         function hideStatus(stepId) { document.getElementById(stepId).classList.remove('show'); }
         
+        function copyUrl(elementId) {
+            const url = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = event.target;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        
+        async function setupTunnel() {
+            // If tunnel already active, just proceed
+            if (tunnelActive) {
+                goToStep(2);
+                return;
+            }
+            
+            const token = document.getElementById('ngrok-token').value.trim();
+            if (!token) {
+                showStatus('step1-status', 'error', '⚠️ Please enter your ngrok auth token');
+                return;
+            }
+            
+            showStatus('step1-status', 'loading', 'Starting tunnel...');
+            
+            try {
+                const response = await fetch('/api/tunnel/configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ngrok_token: token })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    config.ngrokToken = token;
+                    config.webhookUrl = data.webhook_url;
+                    tunnelActive = true;
+                    
+                    document.getElementById('tunnel-result').style.display = 'block';
+                    document.getElementById('new-webhook-url').textContent = data.webhook_url;
+                    document.getElementById('tunnel-btn').textContent = 'Continue';
+                    
+                    showStatus('step1-status', 'success', '✓ Tunnel started successfully!');
+                    
+                    setTimeout(() => {
+                        goToStep(2);
+                        hideStatus('step1-status');
+                    }, 1000);
+                } else {
+                    showStatus('step1-status', 'error', `⚠️ ${data.error || 'Failed to start tunnel'}`);
+                }
+            } catch (error) {
+                showStatus('step1-status', 'error', '⚠️ Failed to start tunnel. Check your token.');
+            }
+        }
+        
         async function validateApiKey() {
             const apiKey = document.getElementById('api-key').value.trim();
-            if (!apiKey) { showStatus('step1-status', 'error', '⚠️ Please enter your API key'); return; }
-            if (!apiKey.startsWith('lin_api_')) { showStatus('step1-status', 'error', '⚠️ API key should start with lin_api_'); return; }
+            if (!apiKey) { showStatus('step2-status', 'error', '⚠️ Please enter your API key'); return; }
+            if (!apiKey.startsWith('lin_api_')) { showStatus('step2-status', 'error', '⚠️ API key should start with lin_api_'); return; }
             
-            showStatus('step1-status', 'loading', 'Validating API key...');
+            showStatus('step2-status', 'loading', 'Validating API key...');
             try {
                 const response = await fetch('/api/setup/validate-key', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -315,10 +520,10 @@
                 const data = await response.json();
                 if (data.valid) {
                     config.apiKey = apiKey; teams = data.teams;
-                    showStatus('step1-status', 'success', '✓ API key is valid!');
-                    setTimeout(() => { renderTeams(); goToStep(2); hideStatus('step1-status'); }, 500);
-                } else { showStatus('step1-status', 'error', `⚠️ ${data.error || 'Invalid API key'}`); }
-            } catch (error) { showStatus('step1-status', 'error', '⚠️ Connection error. Please try again.'); }
+                    showStatus('step2-status', 'success', '✓ API key is valid!');
+                    setTimeout(() => { renderTeams(); goToStep(3); hideStatus('step2-status'); }, 500);
+                } else { showStatus('step2-status', 'error', `⚠️ ${data.error || 'Invalid API key'}`); }
+            } catch (error) { showStatus('step2-status', 'error', '⚠️ Connection error. Please try again.'); }
         }
         
         function renderTeams() {
@@ -337,8 +542,8 @@
         }
         
         async function selectTeam() {
-            if (!config.teamId) { showStatus('step2-status', 'error', '⚠️ Please select a team'); return; }
-            showStatus('step2-status', 'loading', 'Loading projects...');
+            if (!config.teamId) { showStatus('step3-status', 'error', '⚠️ Please select a team'); return; }
+            showStatus('step3-status', 'loading', 'Loading projects...');
             try {
                 const response = await fetch('/api/setup/projects', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -346,8 +551,8 @@
                 });
                 const data = await response.json();
                 projects = data.projects || [];
-                renderProjects(); goToStep(3); hideStatus('step2-status');
-            } catch (error) { showStatus('step2-status', 'error', '⚠️ Failed to load projects'); }
+                renderProjects(); goToStep(4); hideStatus('step3-status');
+            } catch (error) { showStatus('step3-status', 'error', '⚠️ Failed to load projects'); }
         }
         
         function renderProjects() {
@@ -368,7 +573,7 @@
             el.classList.add('selected'); config.projectId = id; config.projectName = name;
         }
         
-        function selectProject() { goToStep(4); }
+        function selectProject() { goToStep(5); }
         
         async function saveConfiguration() {
             config.webhookSecret = document.getElementById('webhook-secret').value.trim();
@@ -377,7 +582,7 @@
                 config.webhookSecret = 'sgpl_' + Array.from(crypto.getRandomValues(new Uint8Array(24)))
                     .map(b => b.toString(16).padStart(2, '0')).join('');
             }
-            showStatus('step4-status', 'loading', 'Saving configuration...');
+            showStatus('step5-status', 'loading', 'Saving configuration...');
             try {
                 const response = await fetch('/api/setup/save', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -388,18 +593,16 @@
                 });
                 const data = await response.json();
                 if (data.success) {
+                    // Use webhook URL from config or from save response
+                    const webhookUrl = config.webhookUrl || data.webhook_url || `${window.location.protocol}//${window.location.host}/webhook`;
+                    document.getElementById('final-webhook-url').textContent = webhookUrl;
                     document.getElementById('display-secret').textContent = config.webhookSecret;
                     document.getElementById('secret-step').style.display = 'list-item';
-                    document.getElementById('webhook-url').textContent = `${window.location.protocol}//${window.location.host}/webhook`;
-                    showStatus('step4-status', 'success', '✓ Configuration saved!');
-                    setTimeout(() => goToStep(5), 500);
-                } else { showStatus('step4-status', 'error', `⚠️ ${data.error || 'Failed to save configuration'}`); }
-            } catch (error) { showStatus('step4-status', 'error', '⚠️ Failed to save configuration'); }
+                    showStatus('step5-status', 'success', '✓ Configuration saved!');
+                    setTimeout(() => goToStep(6), 500);
+                } else { showStatus('step5-status', 'error', `⚠️ ${data.error || 'Failed to save configuration'}`); }
+            } catch (error) { showStatus('step5-status', 'error', '⚠️ Failed to save configuration'); }
         }
-        
-        document.getElementById('api-key').focus();
-        document.getElementById('api-key').addEventListener('keypress', (e) => { if (e.key === 'Enter') validateApiKey(); });
     </script>
 </body>
 </html>
-

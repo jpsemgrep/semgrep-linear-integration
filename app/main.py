@@ -291,6 +291,76 @@ def tunnel_status():
     })
 
 
+@app.route("/api/tunnel/configure", methods=["POST"])
+def configure_tunnel():
+    """Configure ngrok token and start tunnel."""
+    try:
+        data = request.get_json()
+        ngrok_token = data.get("ngrok_token", "").strip()
+        
+        if not ngrok_token:
+            return jsonify({"success": False, "error": "ngrok token is required"})
+        
+        # Set the token in environment
+        os.environ["NGROK_AUTHTOKEN"] = ngrok_token
+        os.environ["LOCAL_DEV"] = "true"
+        
+        # Try to start the tunnel
+        public_url = tunnel.start_tunnel(config.PORT)
+        
+        if public_url:
+            # Save token to .env file for persistence
+            env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+            try:
+                # Read existing .env content
+                existing_content = ""
+                if os.path.exists(env_path):
+                    with open(env_path, "r") as f:
+                        existing_content = f.read()
+                
+                # Update or add NGROK_AUTHTOKEN and LOCAL_DEV
+                lines = existing_content.split("\n")
+                new_lines = []
+                found_ngrok = False
+                found_local = False
+                
+                for line in lines:
+                    if line.startswith("NGROK_AUTHTOKEN="):
+                        new_lines.append(f"NGROK_AUTHTOKEN={ngrok_token}")
+                        found_ngrok = True
+                    elif line.startswith("LOCAL_DEV="):
+                        new_lines.append("LOCAL_DEV=true")
+                        found_local = True
+                    else:
+                        new_lines.append(line)
+                
+                if not found_ngrok:
+                    new_lines.append(f"NGROK_AUTHTOKEN={ngrok_token}")
+                if not found_local:
+                    new_lines.append("LOCAL_DEV=true")
+                
+                with open(env_path, "w") as f:
+                    f.write("\n".join(new_lines))
+                    
+            except Exception as e:
+                logger.warning(f"Could not save ngrok token to .env: {e}")
+            
+            return jsonify({
+                "success": True,
+                "public_url": public_url,
+                "webhook_url": f"{public_url}/webhook"
+            })
+        else:
+            return jsonify({
+                "success": False, 
+                "error": "Failed to start tunnel. Check your ngrok token."
+            })
+            
+    except Exception as e:
+        logger.exception(f"Failed to configure tunnel: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
 @app.route("/api/tunnel/start", methods=["POST"])
 def start_tunnel_endpoint():
     """Manually start the ngrok tunnel."""
