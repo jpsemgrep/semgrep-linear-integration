@@ -142,16 +142,32 @@ class LinearClient:
         }
         """
         
-        # Search for issues containing the finding ID in description
-        result = self._execute_query(query, {
-            "filter": {
-                "team": {"id": {"eq": team_id}},
-                "description": {"contains": finding_id}
-            }
-        })
-        
-        nodes = result.get("data", {}).get("issues", {}).get("nodes", [])
-        return nodes[0] if nodes else None
+        try:
+            # Search for issues containing the finding ID in description
+            result = self._execute_query(query, {
+                "filter": {
+                    "team": {"id": {"eq": team_id}},
+                    "description": {"contains": finding_id}
+                }
+            })
+            
+            if not result:
+                return None
+            
+            data = result.get("data")
+            if not data:
+                logger.warning(f"No data in Linear response: {result}")
+                return None
+            
+            issues = data.get("issues")
+            if not issues:
+                return None
+            
+            nodes = issues.get("nodes", [])
+            return nodes[0] if nodes else None
+        except Exception as e:
+            logger.error(f"Error searching for existing issue: {e}")
+            return None
     
     def test_connection(self) -> bool:
         """Test the API connection."""

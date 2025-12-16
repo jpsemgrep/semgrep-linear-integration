@@ -127,7 +127,12 @@ def webhook():
         # Handle array of findings (Semgrep sends findings as a list)
         if isinstance(payload, list):
             logger.info(f"Processing {len(payload)} findings from array payload")
-            for finding in payload:
+            for item in payload:
+                # Semgrep wraps each finding in a 'semgrep_finding' key
+                if isinstance(item, dict) and 'semgrep_finding' in item:
+                    finding = item['semgrep_finding']
+                else:
+                    finding = item
                 result = webhook_handler.process_finding(finding)
                 results.append(result)
             return jsonify({

@@ -40,56 +40,46 @@ class WebhookHandler:
         try:
             logger.info(f"Processing finding with keys: {list(finding.keys())}")
             
-            # Extract finding details - handle multiple possible formats
-            # Format 1: Standard format with nested rule object
-            # Format 2: Flat format with check_id, path, etc.
+            # Extract finding ID
+            finding_id = finding.get("id", "unknown")
             
-            finding_id = (
-                finding.get("id") or 
-                finding.get("finding_id") or 
-                finding.get("check_id") or 
-                "unknown"
-            )
+            # Extract rule/check ID (Semgrep uses check_id in webhook payloads)
+            rule_id = finding.get("check_id", finding.get("rule", {}).get("id", "unknown-rule"))
             
-            # Rule info - try nested first, then flat
-            rule_obj = finding.get("rule", {})
-            if isinstance(rule_obj, dict):
-                rule_id = rule_obj.get("id", finding.get("check_id", "unknown-rule"))
-                rule_name = rule_obj.get("name", rule_id)
-                message = rule_obj.get("message", finding.get("extra", {}).get("message", "No description available"))
+            # Create a readable rule name from the check_id
+            # e.g., "python.flask.security.injection.path-traversal-open" -> "path-traversal-open"
+            rule_name = rule_id.split(".")[-1] if "." in rule_id else rule_id
+            
+            # Get message directly from finding (Semgrep puts it at top level)
+            message = finding.get("message", "No description available")
+            
+            # Severity - Semgrep sends as integer: 1=low, 2=medium, 3=high, 4=critical
+            severity_raw = finding.get("severity", 2)
+            severity_map = {1: "low", 2: "medium", 3: "high", 4: "critical"}
+            if isinstance(severity_raw, int):
+                severity = severity_map.get(severity_raw, "medium")
             else:
-                rule_id = finding.get("check_id", str(rule_obj) if rule_obj else "unknown-rule")
-                rule_name = rule_id
-                message = finding.get("extra", {}).get("message", "No description available")
+                severity = str(severity_raw).lower()
             
-            # Severity - check multiple possible locations
-            severity = (
-                finding.get("severity") or
-                finding.get("extra", {}).get("severity") or
-                finding.get("metadata", {}).get("severity") or
-                "medium"
-            ).lower()
+            # Location - Semgrep uses flat format: path, line, end_line
+            file_path = finding.get("path", "unknown")
+            start_line = finding.get("line", 0)
+            end_line = finding.get("end_line", start_line)
             
-            # Location info - handle both nested and flat formats
-            location = finding.get("location", {})
-            if location:
-                file_path = location.get("file_path", location.get("path", "unknown"))
-                start_line = location.get("start_line", location.get("start", {}).get("line", 0))
-                end_line = location.get("end_line", location.get("end", {}).get("line", start_line))
-            else:
-                # Flat format
-                file_path = finding.get("path", "unknown")
-                start_line = finding.get("start", {}).get("line", finding.get("line", 0))
-                end_line = finding.get("end", {}).get("line", start_line)
-            
-            # Repository info - try multiple locations
-            repo = finding.get("repository", finding.get("repo", {}))
-            if isinstance(repo, dict):
-                repo_name = repo.get("name", repo.get("repo_name", "unknown-repo"))
-                repo_url = repo.get("url", repo.get("repo_url", ""))
-            else:
-                repo_name = str(repo) if repo else "unknown-repo"
-                repo_url = ""
+            # Repository info - Semgrep uses repo_name and commit_url/pr_url
+            repo_name = finding.get("repo_name", "unknown-repo")
+            # Extract repo URL from commit_url or pr_url
+            commit_url = finding.get("commit_url", "")
+            pr_url = finding.get("pr_url", "")
+            repo_url = ""
+            if commit_url:
+                # Extract base repo URL from commit URL
+                # https://github.com/user/repo/commit/xxx -> https://github.com/user/repo
+                parts = commit_url.split("/commit/")[0] if "/commit/" in commit_url else ""
+                repo_url = parts
+            elif pr_url:
+                parts = pr_url.split("/pull/")[0] if "/pull/" in pr_url else ""
+                repo_url = parts
             
             logger.info(f"Extracted finding: id={finding_id}, rule={rule_id}, severity={severity}, file={file_path}")
             
