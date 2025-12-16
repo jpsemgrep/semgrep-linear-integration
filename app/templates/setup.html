@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Wizard - Semgrep → Linear Integration</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;500;600;700&display=swap');
+        
+        :root {
+            --bg-primary: #0a0e14;
+            --bg-secondary: #131920;
+            --bg-tertiary: #1a2029;
+            --bg-input: #0d1117;
+            --accent-primary: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --accent-orange: #d29922;
+            --accent-purple: #a371f7;
+            --accent-cyan: #56d4dd;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --border-color: #30363d;
+            --border-focus: #58a6ff;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(ellipse at top left, rgba(88, 166, 255, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom right, rgba(163, 113, 247, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at center, rgba(86, 212, 221, 0.03) 0%, transparent 70%);
+        }
+        
+        .wizard-container { width: 100%; max-width: 600px; }
+        
+        .wizard-header { text-align: center; margin-bottom: 2rem; }
+        
+        .logo-container { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 1rem; }
+        .logo { font-size: 2rem; }
+        
+        h1 {
+            font-size: 1.75rem; font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle { color: var(--text-secondary); font-size: 1rem; }
+        
+        .progress-steps { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem; }
+        .step-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border-color); transition: all 0.3s ease; }
+        .step-dot.active { background: var(--accent-primary); box-shadow: 0 0 10px rgba(88, 166, 255, 0.5); }
+        .step-dot.completed { background: var(--accent-green); }
+        
+        .wizard-card {
+            background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 16px; padding: 2rem; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .step { display: none; animation: fadeIn 0.3s ease; }
+        .step.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .step-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .step-description { color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6; }
+        
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; font-weight: 500; margin-bottom: 0.5rem; color: var(--text-primary); }
+        .label-hint { font-weight: 400; color: var(--text-muted); font-size: 0.85rem; }
+        
+        input[type="text"], input[type="password"], select {
+            width: 100%; padding: 0.875rem 1rem; background: var(--bg-input);
+            border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; transition: all 0.2s ease;
+        }
+        input:focus, select:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1); }
+        input::placeholder { color: var(--text-muted); }
+        
+        select {
+            cursor: pointer; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b949e' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 1rem center; padding-right: 2.5rem;
+        }
+        select option { background: var(--bg-secondary); color: var(--text-primary); }
+        
+        .button-group { display: flex; gap: 1rem; margin-top: 2rem; }
+        button {
+            flex: 1; padding: 0.875rem 1.5rem; border-radius: 8px;
+            font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s ease; border: none;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan)); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--border-color); color: var(--text-primary); }
+        
+        .status-message {
+            padding: 0.875rem 1rem; border-radius: 8px; margin-bottom: 1rem;
+            display: none; align-items: center; gap: 0.5rem; font-size: 0.9rem;
+        }
+        .status-message.show { display: flex; }
+        .status-message.success { background: rgba(63, 185, 80, 0.1); border: 1px solid rgba(63, 185, 80, 0.3); color: var(--accent-green); }
+        .status-message.error { background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.3); color: var(--accent-red); }
+        .status-message.loading { background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3); color: var(--accent-primary); }
+        
+        .selection-grid { display: grid; gap: 0.5rem; max-height: 250px; overflow-y: auto; padding-right: 0.5rem; }
+        .selection-grid::-webkit-scrollbar { width: 6px; }
+        .selection-grid::-webkit-scrollbar-track { background: var(--bg-tertiary); border-radius: 3px; }
+        .selection-grid::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        
+        .selection-item {
+            padding: 1rem; background: var(--bg-tertiary); border: 2px solid transparent;
+            border-radius: 8px; cursor: pointer; transition: all 0.2s ease;
+        }
+        .selection-item:hover { border-color: var(--border-color); }
+        .selection-item.selected { border-color: var(--accent-primary); background: rgba(88, 166, 255, 0.1); }
+        .selection-item .item-name { font-weight: 500; margin-bottom: 0.25rem; }
+        .selection-item .item-key {
+            display: inline-block; padding: 0.15rem 0.4rem; background: var(--bg-primary);
+            border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem; color: var(--accent-purple); margin-right: 0.5rem;
+        }
+        .selection-item .item-id { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); }
+        
+        .help-link { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; margin-top: 0.5rem; }
+        .help-link:hover { text-decoration: underline; }
+        
+        .checkbox-group { display: flex; align-items: flex-start; gap: 0.75rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px; cursor: pointer; }
+        .checkbox-group input[type="checkbox"] { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent-primary); }
+        .checkbox-label { flex: 1; }
+        .checkbox-label .title { font-weight: 500; margin-bottom: 0.25rem; }
+        .checkbox-label .description { font-size: 0.85rem; color: var(--text-secondary); }
+        
+        .success-icon {
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1.5rem; font-size: 2.5rem;
+        }
+        .success-title { text-align: center; font-size: 1.5rem; margin-bottom: 1rem; }
+        
+        .next-steps { background: var(--bg-tertiary); border-radius: 8px; padding: 1.25rem; margin-top: 1.5rem; }
+        .next-steps h3 { font-size: 1rem; margin-bottom: 1rem; color: var(--text-secondary); }
+        .next-steps ol { padding-left: 1.25rem; line-height: 1.8; }
+        .next-steps li { margin-bottom: 0.5rem; }
+        .next-steps code { background: var(--bg-primary); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent-cyan); }
+        
+        .spinner { width: 18px; height: 18px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .optional-badge { display: inline-block; padding: 0.15rem 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem; font-weight: 400; }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <div class="logo-container">
+                <span class="logo">🔒</span><span class="logo">→</span><span class="logo">📋</span>
+            </div>
+            <h1>Setup Wizard</h1>
+            <p class="subtitle">Configure your Semgrep → Linear integration in minutes</p>
+        </div>
+        
+        <div class="progress-steps">
+            <div class="step-dot active" data-step="1"></div>
+            <div class="step-dot" data-step="2"></div>
+            <div class="step-dot" data-step="3"></div>
+            <div class="step-dot" data-step="4"></div>
+        </div>
+        
+        <div class="wizard-card">
+            <!-- Step 1: Linear API Key -->
+            <div class="step active" data-step="1">
+                <div class="step-title">🔑 Linear API Key</div>
+                <p class="step-description">Enter your Linear personal API key. This allows the integration to create issues in your workspace.</p>
+                <div id="step1-status" class="status-message"></div>
+                <div class="form-group">
+                    <label for="api-key">API Key <span class="label-hint">starts with lin_api_</span></label>
+                    <input type="password" id="api-key" placeholder="lin_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+                    <a href="https://linear.app/settings/api" target="_blank" class="help-link">📖 How to get your API key</a>
+                </div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="validateApiKey()">Verify & Continue</button>
+                </div>
+            </div>
+            
+            <!-- Step 2: Select Team -->
+            <div class="step" data-step="2">
+                <div class="step-title">👥 Select Team</div>
+                <p class="step-description">Choose which Linear team should receive the Semgrep security findings.</p>
+                <div id="step2-status" class="status-message"></div>
+                <div class="form-group">
+                    <label>Available Teams</label>
+                    <div id="teams-list" class="selection-grid"></div>
+                </div>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="goToStep(1)">Back</button>
+                    <button class="btn-primary" id="team-continue-btn" onclick="selectTeam()" disabled>Continue</button>
+                </div>
+            </div>
+            
+            <!-- Step 3: Select Project (Optional) -->
+            <div class="step" data-step="3">
+                <div class="step-title">📁 Select Project <span class="optional-badge">Optional</span></div>
+                <p class="step-description">Optionally assign all issues to a specific project. You can skip this to create issues without a project.</p>
+                <div id="step3-status" class="status-message"></div>
+                <div class="form-group">
+                    <label>Available Projects</label>
+                    <div id="projects-list" class="selection-grid"></div>
+                </div>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="goToStep(2)">Back</button>
+                    <button class="btn-primary" onclick="selectProject()">Continue</button>
+                </div>
+            </div>
+            
+            <!-- Step 4: Webhook Secret -->
+            <div class="step" data-step="4">
+                <div class="step-title">🔐 Security Settings</div>
+                <p class="step-description">Configure security options for your webhook endpoint.</p>
+                <div id="step4-status" class="status-message"></div>
+                <div class="form-group">
+                    <label for="webhook-secret">Webhook Secret <span class="optional-badge">Recommended</span></label>
+                    <input type="text" id="webhook-secret" placeholder="Enter a secret or leave empty to auto-generate" autocomplete="off">
+                    <p class="label-hint" style="margin-top: 0.5rem;">Use this same secret in Semgrep's webhook configuration</p>
+                </div>
+                <label class="checkbox-group" onclick="event.stopPropagation()">
+                    <input type="checkbox" id="debug-mode">
+                    <div class="checkbox-label">
+                        <div class="title">Enable Debug Mode</div>
+                        <div class="description">Show detailed logs for troubleshooting</div>
+                    </div>
+                </label>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="goToStep(3)">Back</button>
+                    <button class="btn-primary" onclick="saveConfiguration()">Save Configuration</button>
+                </div>
+            </div>
+            
+            <!-- Step 5: Success -->
+            <div class="step" data-step="5">
+                <div class="success-icon">✓</div>
+                <h2 class="success-title">Setup Complete!</h2>
+                <p class="step-description" style="text-align: center;">Your Semgrep → Linear integration is now configured and ready to use.</p>
+                <div class="next-steps">
+                    <h3>📋 Next Steps</h3>
+                    <ol>
+                        <li>Go to <strong>Semgrep AppSec Platform</strong> → Settings → Integrations</li>
+                        <li>Click <strong>Add</strong> → Select <strong>Webhook</strong></li>
+                        <li>Enter webhook URL: <code id="webhook-url">http://localhost:8080/webhook</code></li>
+                        <li id="secret-step" style="display: none;">Set Signature Secret: <code id="display-secret"></code></li>
+                        <li>Enable notifications in <strong>Rules → Policies → Rule Modes</strong></li>
+                    </ol>
+                </div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="window.location.href='/'">Go to Dashboard</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentStep = 1;
+        let config = { apiKey: '', teamId: '', teamName: '', projectId: '', projectName: '', webhookSecret: '', debug: false };
+        let teams = [];
+        let projects = [];
+        
+        function updateStepDots() {
+            document.querySelectorAll('.step-dot').forEach(dot => {
+                const stepNum = parseInt(dot.dataset.step);
+                dot.classList.remove('active', 'completed');
+                if (stepNum === currentStep) dot.classList.add('active');
+                else if (stepNum < currentStep) dot.classList.add('completed');
+            });
+        }
+        
+        function goToStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.querySelector(`.step[data-step="${step}"]`).classList.add('active');
+            currentStep = step;
+            updateStepDots();
+        }
+        
+        function showStatus(stepId, type, message) {
+            const el = document.getElementById(stepId);
+            el.className = `status-message show ${type}`;
+            el.innerHTML = type === 'loading' ? `<div class="spinner"></div> ${message}` : message;
+        }
+        
+        function hideStatus(stepId) { document.getElementById(stepId).classList.remove('show'); }
+        
+        async function validateApiKey() {
+            const apiKey = document.getElementById('api-key').value.trim();
+            if (!apiKey) { showStatus('step1-status', 'error', '⚠️ Please enter your API key'); return; }
+            if (!apiKey.startsWith('lin_api_')) { showStatus('step1-status', 'error', '⚠️ API key should start with lin_api_'); return; }
+            
+            showStatus('step1-status', 'loading', 'Validating API key...');
+            try {
+                const response = await fetch('/api/setup/validate-key', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey })
+                });
+                const data = await response.json();
+                if (data.valid) {
+                    config.apiKey = apiKey; teams = data.teams;
+                    showStatus('step1-status', 'success', '✓ API key is valid!');
+                    setTimeout(() => { renderTeams(); goToStep(2); hideStatus('step1-status'); }, 500);
+                } else { showStatus('step1-status', 'error', `⚠️ ${data.error || 'Invalid API key'}`); }
+            } catch (error) { showStatus('step1-status', 'error', '⚠️ Connection error. Please try again.'); }
+        }
+        
+        function renderTeams() {
+            document.getElementById('teams-list').innerHTML = teams.map(team => `
+                <div class="selection-item" data-id="${team.id}" onclick="selectTeamItem(this, '${team.id}', '${team.name}')">
+                    <div class="item-name"><span class="item-key">${team.key}</span>${team.name}</div>
+                    <div class="item-id">${team.id}</div>
+                </div>
+            `).join('');
+        }
+        
+        function selectTeamItem(el, id, name) {
+            document.querySelectorAll('#teams-list .selection-item').forEach(item => item.classList.remove('selected'));
+            el.classList.add('selected'); config.teamId = id; config.teamName = name;
+            document.getElementById('team-continue-btn').disabled = false;
+        }
+        
+        async function selectTeam() {
+            if (!config.teamId) { showStatus('step2-status', 'error', '⚠️ Please select a team'); return; }
+            showStatus('step2-status', 'loading', 'Loading projects...');
+            try {
+                const response = await fetch('/api/setup/projects', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: config.apiKey, team_id: config.teamId })
+                });
+                const data = await response.json();
+                projects = data.projects || [];
+                renderProjects(); goToStep(3); hideStatus('step2-status');
+            } catch (error) { showStatus('step2-status', 'error', '⚠️ Failed to load projects'); }
+        }
+        
+        function renderProjects() {
+            const container = document.getElementById('projects-list');
+            if (projects.length === 0) {
+                container.innerHTML = `<div class="selection-item selected" onclick="selectProjectItem(this, '', 'None')">
+                    <div class="item-name">No Project</div><div class="item-id">Issues will be created without a project</div></div>`;
+                return;
+            }
+            container.innerHTML = `<div class="selection-item selected" onclick="selectProjectItem(this, '', 'None')">
+                <div class="item-name">No Project</div><div class="item-id">Create issues without assigning to a project</div></div>` +
+                projects.map(p => `<div class="selection-item" onclick="selectProjectItem(this, '${p.id}', '${p.name}')">
+                    <div class="item-name">${p.name}</div><div class="item-id">${p.id}</div></div>`).join('');
+        }
+        
+        function selectProjectItem(el, id, name) {
+            document.querySelectorAll('#projects-list .selection-item').forEach(item => item.classList.remove('selected'));
+            el.classList.add('selected'); config.projectId = id; config.projectName = name;
+        }
+        
+        function selectProject() { goToStep(4); }
+        
+        async function saveConfiguration() {
+            config.webhookSecret = document.getElementById('webhook-secret').value.trim();
+            config.debug = document.getElementById('debug-mode').checked;
+            if (!config.webhookSecret) {
+                config.webhookSecret = 'sgpl_' + Array.from(crypto.getRandomValues(new Uint8Array(24)))
+                    .map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+            showStatus('step4-status', 'loading', 'Saving configuration...');
+            try {
+                const response = await fetch('/api/setup/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_key: config.apiKey, team_id: config.teamId, project_id: config.projectId,
+                        webhook_secret: config.webhookSecret, debug: config.debug
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('display-secret').textContent = config.webhookSecret;
+                    document.getElementById('secret-step').style.display = 'list-item';
+                    document.getElementById('webhook-url').textContent = `${window.location.protocol}//${window.location.host}/webhook`;
+                    showStatus('step4-status', 'success', '✓ Configuration saved!');
+                    setTimeout(() => goToStep(5), 500);
+                } else { showStatus('step4-status', 'error', `⚠️ ${data.error || 'Failed to save configuration'}`); }
+            } catch (error) { showStatus('step4-status', 'error', '⚠️ Failed to save configuration'); }
+        }
+        
+        document.getElementById('api-key').focus();
+        document.getElementById('api-key').addEventListener('keypress', (e) => { if (e.key === 'Enter') validateApiKey(); });
+    </script>
+</body>
+</html>
+
