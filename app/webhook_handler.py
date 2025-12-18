@@ -19,12 +19,17 @@ class WebhookHandler:
         # Reload config to get latest values from .env file
         config.reload()
         
-        if not config.SEMGREP_WEBHOOK_SECRET:
+        secret = config.SEMGREP_WEBHOOK_SECRET
+        logger.info(f"Signature verification: secret_configured={bool(secret)}, signature_provided={bool(signature)}")
+        
+        # If no secret configured, skip verification entirely
+        if not secret or secret.strip() == "":
             logger.warning("No webhook secret configured - skipping signature verification")
             return True
         
+        # Secret is configured, so signature is required
         if not signature:
-            logger.error("No signature provided in request")
+            logger.error("No signature provided in request but secret is configured")
             return False
         
         expected_signature = hmac.new(
