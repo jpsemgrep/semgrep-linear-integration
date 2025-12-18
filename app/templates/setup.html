@@ -324,9 +324,11 @@
                 <p class="step-description">Configure security options for your webhook endpoint.</p>
                 <div id="step5-status" class="status-message"></div>
                 <div class="form-group">
-                    <label for="webhook-secret">Webhook Secret <span class="optional-badge">Recommended</span></label>
-                    <input type="text" id="webhook-secret" placeholder="Enter a secret or leave empty to auto-generate" autocomplete="off">
-                    <p class="label-hint" style="margin-top: 0.5rem;">Use this same secret in Semgrep's webhook configuration</p>
+                    <label for="webhook-secret">Webhook Secret <span class="optional-badge">Optional</span></label>
+                    <input type="text" id="webhook-secret" placeholder="Leave EMPTY to skip signature verification" autocomplete="off">
+                    <p class="label-hint" style="margin-top: 0.5rem; color: var(--accent-orange);">
+                        💡 <strong>For initial testing, leave this empty.</strong> You can add signature verification later for production.
+                    </p>
                 </div>
                 <label class="checkbox-group" onclick="event.stopPropagation()">
                     <input type="checkbox" id="debug-mode">
@@ -355,6 +357,26 @@
                     </div>
                 </div>
                 
+                <!-- Test Integration Button -->
+                <div style="margin: 1.5rem 0; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <button class="btn-primary" style="flex-shrink: 0;" onclick="testIntegration()">🧪 Test Integration</button>
+                        <span id="test-result" style="color: var(--text-secondary);"></span>
+                    </div>
+                </div>
+                
+                <!-- Important Note for ngrok -->
+                <div style="margin: 1rem 0; padding: 1rem; background: rgba(210, 153, 34, 0.1); border: 1px solid var(--accent-orange); border-radius: 8px;">
+                    <strong style="color: var(--accent-orange);">⚠️ Important for ngrok Free Tier:</strong>
+                    <p style="margin-top: 0.5rem; color: var(--text-secondary);">
+                        Before testing from Semgrep, <strong>open the webhook URL in your browser first</strong> and click "Visit Site" to bypass ngrok's warning page. 
+                        Then test from Semgrep.
+                    </p>
+                    <button class="btn-secondary" style="margin-top: 0.75rem;" onclick="window.open(document.getElementById('final-webhook-url').textContent, '_blank')">
+                        🌐 Open Webhook URL in Browser
+                    </button>
+                </div>
+                
                 <div class="next-steps">
                     <h3>📋 Configure Semgrep Webhook</h3>
                     <ol>
@@ -362,8 +384,8 @@
                         <li>Click <strong>Add</strong> → Select <strong>Webhook</strong></li>
                         <li>Paste the webhook URL above</li>
                         <li id="secret-step" style="display: none;">Set Signature Secret: <code id="display-secret"></code></li>
-                        <li>Click <strong>Subscribe</strong></li>
-                        <li>Enable notifications in <strong>Rules → Policies → Rule Modes</strong></li>
+                        <li>Leave the <strong>Signature Secret empty</strong> in Semgrep (for testing)</li>
+                        <li>Click <strong>Save</strong> and test the connection</li>
                     </ol>
                 </div>
                 
@@ -578,10 +600,7 @@
         async function saveConfiguration() {
             config.webhookSecret = document.getElementById('webhook-secret').value.trim();
             config.debug = document.getElementById('debug-mode').checked;
-            if (!config.webhookSecret) {
-                config.webhookSecret = 'sgpl_' + Array.from(crypto.getRandomValues(new Uint8Array(24)))
-                    .map(b => b.toString(16).padStart(2, '0')).join('');
-            }
+            // DON'T auto-generate secret - let user leave it blank to skip signature verification
             showStatus('step5-status', 'loading', 'Saving configuration...');
             try {
                 const response = await fetch('/api/setup/save', {
@@ -596,12 +615,32 @@
                     // Use webhook URL from config or from save response
                     const webhookUrl = config.webhookUrl || data.webhook_url || `${window.location.protocol}//${window.location.host}/webhook`;
                     document.getElementById('final-webhook-url').textContent = webhookUrl;
-                    document.getElementById('display-secret').textContent = config.webhookSecret;
-                    document.getElementById('secret-step').style.display = 'list-item';
+                    if (config.webhookSecret) {
+                        document.getElementById('display-secret').textContent = config.webhookSecret;
+                        document.getElementById('secret-step').style.display = 'list-item';
+                    }
                     showStatus('step5-status', 'success', '✓ Configuration saved!');
                     setTimeout(() => goToStep(6), 500);
                 } else { showStatus('step5-status', 'error', `⚠️ ${data.error || 'Failed to save configuration'}`); }
             } catch (error) { showStatus('step5-status', 'error', '⚠️ Failed to save configuration'); }
+        }
+        
+        async function testIntegration() {
+            const resultEl = document.getElementById('test-result');
+            resultEl.innerHTML = '<span style="color: var(--accent-primary);">Testing...</span>';
+            
+            try {
+                const response = await fetch('/test-webhook');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    resultEl.innerHTML = '<span style="color: var(--accent-green);">✓ Integration working! Linear connected.</span>';
+                } else {
+                    resultEl.innerHTML = `<span style="color: var(--accent-red);">✗ ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultEl.innerHTML = '<span style="color: var(--accent-red);">✗ Connection failed</span>';
+            }
         }
     </script>
 </body>

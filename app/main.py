@@ -100,10 +100,73 @@ def health():
     })
 
 
-@app.route("/webhook", methods=["POST"])
+@app.route("/ping", methods=["GET", "POST", "OPTIONS"])
+def ping():
+    """Simple ping endpoint - always returns 200. Use this to test connectivity."""
+    return jsonify({"status": "ok", "message": "pong"}), 200
+
+
+@app.route("/test-webhook", methods=["GET", "POST"])
+def test_webhook():
+    """Test endpoint that simulates a Semgrep webhook to verify the integration works."""
+    config.reload()
+    
+    # Check if configured
+    if not config.LINEAR_API_KEY or not config.LINEAR_TEAM_ID:
+        return jsonify({
+            "status": "error",
+            "message": "Integration not configured. Please complete the setup wizard.",
+            "configured": False
+        }), 400
+    
+    # Test Linear connection
+    try:
+        test_client = LinearClient(config.LINEAR_API_KEY)
+        connected = test_client.test_connection()
+        teams = test_client.get_teams() if connected else []
+        
+        return jsonify({
+            "status": "success",
+            "message": "Integration is working correctly!",
+            "configured": True,
+            "linear_connected": connected,
+            "team_count": len(teams),
+            "webhook_url": tunnel.get_webhook_url(request.host)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error", 
+            "message": f"Linear connection failed: {str(e)}",
+            "configured": True,
+            "linear_connected": False
+        }), 500
+
+
+@app.route("/webhook", methods=["GET", "POST", "OPTIONS"])
 def webhook():
     """Main webhook endpoint for Semgrep events."""
     global linear_client, webhook_handler
+    
+    # Handle preflight OPTIONS request (CORS)
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Semgrep-Signature-256"
+        return response, 200
+    
+    # Handle GET request (connectivity test from Semgrep or browser)
+    if request.method == "GET":
+        logger.info("Webhook GET request received (connectivity test)")
+        return jsonify({
+            "status": "ok",
+            "message": "Semgrep-Linear webhook endpoint is active",
+            "method": "GET",
+            "info": "Send POST requests with Semgrep findings to create Linear issues"
+        }), 200
+    
+    # POST request - process webhook
+    logger.info(f"Webhook POST request received from {request.remote_addr}")
     
     # Reload config and reinitialize if needed (handles multi-worker scenarios)
     config.reload()
@@ -112,7 +175,8 @@ def webhook():
         webhook_handler = WebhookHandler(linear_client)
     
     if not webhook_handler:
-        return jsonify({"error": "Integration not configured"}), 503
+        logger.warning("Webhook received but Linear not configured")
+        return jsonify({"error": "Integration not configured", "status": "error"}), 503
     
     # Verify signature
     signature = request.headers.get("X-Semgrep-Signature-256", "")
