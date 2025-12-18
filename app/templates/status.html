@@ -132,25 +132,57 @@
         .stat-box {
             background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: 8px;
             display: flex; flex-direction: column; min-width: 80px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .stat-box:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
         .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); }
         .stat-value.success { color: var(--accent-green); }
         .stat-value.error { color: var(--accent-red); }
+        .stat-value.webhooks { color: var(--accent-cyan); }
         .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
         
-        .activity-log { max-height: 400px; overflow-y: auto; }
-        .activity-loading { color: var(--text-secondary); padding: 1rem; text-align: center; }
-        .activity-empty { color: var(--text-secondary); padding: 2rem; text-align: center; }
+        .activity-log { max-height: 450px; overflow-y: auto; scroll-behavior: smooth; }
+        .activity-log::-webkit-scrollbar { width: 6px; }
+        .activity-log::-webkit-scrollbar-track { background: var(--bg-tertiary); border-radius: 3px; }
+        .activity-log::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        .activity-log::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+        
+        .activity-loading { color: var(--text-secondary); padding: 2rem; text-align: center; }
+        .activity-loading::after {
+            content: ''; display: inline-block; width: 16px; height: 16px;
+            border: 2px solid var(--text-secondary); border-top-color: transparent;
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin-left: 0.5rem; vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .activity-empty { 
+            color: var(--text-secondary); padding: 3rem; text-align: center;
+            background: var(--bg-tertiary); border-radius: 8px; border: 2px dashed var(--border-color);
+        }
+        .activity-empty-icon { font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.5; }
         
         .activity-item {
-            display: flex; gap: 0.75rem; padding: 0.75rem; border-radius: 8px;
+            display: flex; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 8px;
             margin-bottom: 0.5rem; background: var(--bg-tertiary); align-items: flex-start;
+            transition: all 0.2s ease; border-left: 3px solid transparent;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn { 
+            from { opacity: 0; transform: translateX(-10px); } 
+            to { opacity: 1; transform: translateX(0); }
         }
         .activity-item:hover { background: var(--bg-primary); }
+        .activity-item.success { border-left-color: var(--accent-green); }
+        .activity-item.error { border-left-color: var(--accent-red); }
+        .activity-item.warning { border-left-color: var(--accent-orange); }
+        .activity-item.info { border-left-color: var(--accent-primary); }
         
         .activity-icon {
-            width: 32px; height: 32px; border-radius: 8px; display: flex;
-            align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;
+            width: 36px; height: 36px; border-radius: 8px; display: flex;
+            align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;
         }
         .activity-icon.success { background: rgba(63, 185, 80, 0.2); }
         .activity-icon.error { background: rgba(248, 81, 73, 0.2); }
@@ -159,9 +191,38 @@
         
         .activity-content { flex: 1; min-width: 0; }
         .activity-message { font-weight: 500; margin-bottom: 0.25rem; word-break: break-word; }
-        .activity-details { font-size: 0.8rem; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
-        .activity-details code { background: var(--bg-primary); padding: 0.1rem 0.3rem; border-radius: 3px; }
+        .activity-details { font-size: 0.8rem; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; line-height: 1.6; }
+        .activity-details code { background: var(--bg-primary); padding: 0.1rem 0.4rem; border-radius: 3px; color: var(--accent-purple); }
+        .activity-tag {
+            display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.4rem;
+            border-radius: 4px; margin-right: 0.5rem; font-weight: 500; text-transform: uppercase;
+        }
+        .activity-tag.severity-critical { background: rgba(248, 81, 73, 0.2); color: var(--accent-red); }
+        .activity-tag.severity-high { background: rgba(248, 81, 73, 0.15); color: #ff7b72; }
+        .activity-tag.severity-medium { background: rgba(210, 153, 34, 0.2); color: var(--accent-orange); }
+        .activity-tag.severity-low { background: rgba(63, 185, 80, 0.2); color: var(--accent-green); }
         .activity-time { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+        
+        .refresh-btn {
+            background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary);
+            padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.8rem; font-weight: 500; transition: all 0.2s ease;
+        }
+        .refresh-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--accent-primary); }
+        .refresh-btn.spinning { animation: spin 0.6s linear infinite; }
+        
+        .live-indicator {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            font-size: 0.75rem; color: var(--accent-green); margin-left: 1rem;
+        }
+        .live-dot {
+            width: 8px; height: 8px; background: var(--accent-green);
+            border-radius: 50%; animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
     </style>
 </head>
 <body>
@@ -283,11 +344,12 @@
         <div class="card">
             <div class="card-header">
                 <h2>📊 Activity Log</h2>
-                <button class="copy-btn" onclick="refreshActivities()" style="margin-left: auto;">↻ Refresh</button>
+                <span class="live-indicator"><span class="live-dot"></span>Live</span>
+                <button class="refresh-btn" id="refresh-btn" onclick="refreshActivities()" style="margin-left: auto;">↻ Refresh</button>
             </div>
             <div id="activity-stats" class="activity-stats"></div>
             <div id="activity-log" class="activity-log">
-                <div class="activity-loading">Loading activities...</div>
+                <div class="activity-loading">Loading activities</div>
             </div>
         </div>
         
@@ -311,10 +373,13 @@
         
         function getIcon(type, status) {
             const icons = {
-                'issue_created': '✅',
+                'issue_created': '🎫',
                 'issue_skipped': '⏭️',
                 'issue_failed': '❌',
                 'webhook_received': '📥',
+                'scan_completed': '🔍',
+                'startup': '🚀',
+                'signature_missing': '🔐',
                 'error': '🚨',
                 'default': '📋'
             };
@@ -326,29 +391,56 @@
             const now = new Date();
             const diff = (now - date) / 1000;
             
-            if (diff < 60) return 'just now';
+            if (diff < 10) return 'just now';
+            if (diff < 60) return Math.floor(diff) + 's ago';
             if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
             if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
             return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        function getSeverityTag(severity) {
+            if (!severity) return '';
+            const s = severity.toLowerCase();
+            return `<span class="activity-tag severity-${s}">${s}</span>`;
         }
         
         function renderActivity(item) {
             const details = item.details || {};
             let detailsHtml = '';
             
-            if (details.issue_id) {
-                detailsHtml = `<code>${details.issue_id}</code>`;
-                if (details.file) detailsHtml += ` • ${details.file}`;
-                if (details.severity) detailsHtml += ` • ${details.severity}`;
-            } else if (details.file) {
-                detailsHtml = `<code>${details.file}</code>`;
-                if (details.rule) detailsHtml += ` • ${details.rule.split('.').pop()}`;
+            if (item.type === 'issue_created') {
+                detailsHtml = getSeverityTag(details.severity);
+                if (details.issue_id) detailsHtml += `<code>${details.issue_id}</code>`;
+                if (details.file) {
+                    const shortFile = details.file.split('/').slice(-2).join('/');
+                    detailsHtml += ` → <code>${shortFile}</code>`;
+                }
+                if (details.repo) detailsHtml += ` in ${details.repo}`;
+            } else if (item.type === 'issue_skipped') {
+                if (details.rule) detailsHtml = `Rule: <code>${details.rule}</code>`;
+                if (details.file) {
+                    const shortFile = details.file.split('/').slice(-2).join('/');
+                    detailsHtml += ` • ${shortFile}`;
+                }
+            } else if (item.type === 'webhook_received') {
+                if (details.method) detailsHtml = `Method: ${details.method}`;
+                if (details.finding_count) detailsHtml += ` • ${details.finding_count} findings`;
+            } else if (item.type === 'scan_completed') {
+                if (details.findings_count !== undefined) {
+                    detailsHtml = `${details.findings_count} findings detected`;
+                }
+            } else if (item.type === 'startup') {
+                if (details.public_url) detailsHtml = `<code>${details.public_url}</code>`;
             } else if (details.error) {
-                detailsHtml = details.error.substring(0, 100);
+                detailsHtml = `<span style="color: var(--accent-red);">${details.error.substring(0, 120)}${details.error.length > 120 ? '...' : ''}</span>`;
+            } else if (details.file) {
+                const shortFile = details.file.split('/').slice(-2).join('/');
+                detailsHtml = `<code>${shortFile}</code>`;
+                if (details.rule) detailsHtml += ` • ${details.rule}`;
             }
             
             return `
-                <div class="activity-item">
+                <div class="activity-item ${item.status}">
                     <div class="activity-icon ${item.status}">${getIcon(item.type, item.status)}</div>
                     <div class="activity-content">
                         <div class="activity-message">${item.message}</div>
@@ -359,47 +451,79 @@
             `;
         }
         
-        async function refreshActivities() {
+        let lastActivityCount = 0;
+        
+        async function refreshActivities(showSpinner = false) {
             const logEl = document.getElementById('activity-log');
             const statsEl = document.getElementById('activity-stats');
+            const refreshBtn = document.getElementById('refresh-btn');
+            
+            if (showSpinner) {
+                refreshBtn.classList.add('spinning');
+            }
             
             try {
-                const response = await fetch('/api/activities?limit=50');
+                const response = await fetch('/api/activity?limit=50');
                 const data = await response.json();
                 
-                // Render stats
+                // Render stats with more detail
                 const stats = data.stats;
+                const webhookCount = stats.by_type?.webhook_received || 0;
+                const ticketsCreated = stats.by_type?.issue_created || 0;
+                
                 statsEl.innerHTML = `
                     <div class="stat-box">
-                        <div class="stat-value">${stats.total}</div>
-                        <div class="stat-label">Total</div>
+                        <div class="stat-value webhooks">${webhookCount}</div>
+                        <div class="stat-label">Webhooks</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-value success">${stats.success}</div>
-                        <div class="stat-label">Success</div>
+                        <div class="stat-value success">${ticketsCreated}</div>
+                        <div class="stat-label">Tickets</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-value error">${stats.errors}</div>
                         <div class="stat-label">Errors</div>
                     </div>
+                    <div class="stat-box">
+                        <div class="stat-value">${stats.total}</div>
+                        <div class="stat-label">Total</div>
+                    </div>
                 `;
                 
                 // Render activities
                 if (data.activities.length === 0) {
-                    logEl.innerHTML = '<div class="activity-empty">No activity yet. Trigger a Semgrep scan to see events here.</div>';
+                    logEl.innerHTML = `
+                        <div class="activity-empty">
+                            <div class="activity-empty-icon">📭</div>
+                            <div>No activity yet</div>
+                            <div style="font-size: 0.9rem; margin-top: 0.5rem;">Trigger a Semgrep scan to see webhook events here</div>
+                        </div>`;
                 } else {
-                    logEl.innerHTML = data.activities.map(renderActivity).join('');
+                    // Only re-render if there are new activities
+                    if (data.activities.length !== lastActivityCount || showSpinner) {
+                        logEl.innerHTML = data.activities.map(renderActivity).join('');
+                        lastActivityCount = data.activities.length;
+                    }
                 }
             } catch (error) {
-                logEl.innerHTML = '<div class="activity-empty">Failed to load activities</div>';
+                console.error('Failed to load activities:', error);
+                if (logEl.querySelector('.activity-loading')) {
+                    logEl.innerHTML = `
+                        <div class="activity-empty">
+                            <div class="activity-empty-icon">⚠️</div>
+                            <div>Failed to load activities</div>
+                        </div>`;
+                }
+            } finally {
+                refreshBtn.classList.remove('spinning');
             }
         }
         
         // Load activities on page load
-        refreshActivities();
+        refreshActivities(true);
         
-        // Auto-refresh every 10 seconds
-        setInterval(refreshActivities, 10000);
+        // Auto-refresh every 5 seconds
+        setInterval(() => refreshActivities(false), 5000);
     </script>
 </body>
 </html>

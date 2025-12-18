@@ -27,9 +27,10 @@ if tunnel.is_local_development():
         logger.info(f"✅ Local development mode - tunnel active")
         activity.log_activity("startup", f"Server started with ngrok tunnel", {"public_url": public_url}, "success")
     else:
-        activity.log_activity("startup", "Server started (tunnel not active)", {}, "warning")
-    else:
         logger.warning("⚠️  Local dev mode enabled but tunnel failed to start. Set NGROK_AUTHTOKEN.")
+        activity.log_activity("startup", "Server started (tunnel not active)", {}, "warning")
+else:
+    activity.log_activity("startup", "Server started", {}, "info")
 
 
 def is_configured():
@@ -564,6 +565,18 @@ def get_projects(team_id: str):
         return jsonify({"projects": projects})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/activity", methods=["GET"])
+def get_activity():
+    """Get recent activity log."""
+    limit = request.args.get("limit", 50, type=int)
+    activities = activity.get_activities(limit)
+    stats = activity.get_stats()
+    return jsonify({
+        "activities": activities,
+        "stats": stats
+    })
 
 
 def create_app():
