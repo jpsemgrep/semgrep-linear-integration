@@ -48,11 +48,10 @@ def reinitialize_clients():
     webhook_handler = WebhookHandler(linear_client) if linear_client else None
 
 
-@app.route("/", methods=["GET"])
-def index():
-    """Status page or redirect to setup wizard."""
-    if not is_configured():
-        return redirect("/setup")
+def render_dashboard():
+    """Render the main dashboard page."""
+    config.reload()
+    reinitialize_clients()
     
     validation_errors = config.validate()
     linear_connected = False
@@ -82,10 +81,33 @@ def index():
     )
 
 
+@app.route("/", methods=["GET"])
+def index():
+    """Root route - redirect to setup only on first visit when not configured."""
+    # Check if user has visited before (via cookie) or explicitly wants dashboard
+    skip_setup = request.cookies.get('setup_visited') or request.args.get('dashboard')
+    
+    if not is_configured() and not skip_setup:
+        return redirect("/setup")
+    
+    return render_dashboard()
+
+
+@app.route("/dashboard", methods=["GET"])
+def dashboard():
+    """Dashboard page - always accessible, shows status regardless of configuration."""
+    response = render_dashboard()
+    return response
+
+
 @app.route("/setup", methods=["GET"])
 def setup():
     """Setup wizard page."""
-    return render_template("setup.html")
+    from flask import make_response
+    response = make_response(render_template("setup.html"))
+    # Set cookie to remember user has seen setup (expires in 30 days)
+    response.set_cookie('setup_visited', 'true', max_age=30*24*60*60, httponly=True, samesite='Lax')
+    return response
 
 
 @app.route("/health", methods=["GET"])

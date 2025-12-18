@@ -54,7 +54,7 @@
             border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;
         }
         
-        .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+        .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
         .card-header h2 { font-size: 1.25rem; font-weight: 600; }
         
         .status-badge {
@@ -122,8 +122,9 @@
             background: var(--accent-primary); color: white; border: none;
             padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
             font-size: 0.8rem; font-weight: 500; margin-left: 0.5rem;
+            transition: opacity 0.2s;
         }
-        .copy-btn:hover { opacity: 0.9; }
+        .copy-btn:hover { opacity: 0.85; }
         
         /* Activity Log Styles */
         .activity-stats {
@@ -144,17 +145,23 @@
         .stat-value.webhooks { color: var(--accent-cyan); }
         .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
         
-        .activity-log { max-height: 450px; overflow-y: auto; scroll-behavior: smooth; }
+        .activity-log { 
+            max-height: 450px; overflow-y: auto; 
+            min-height: 120px;
+        }
         .activity-log::-webkit-scrollbar { width: 6px; }
         .activity-log::-webkit-scrollbar-track { background: var(--bg-tertiary); border-radius: 3px; }
         .activity-log::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
         .activity-log::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
         
-        .activity-loading { color: var(--text-secondary); padding: 2rem; text-align: center; }
-        .activity-loading::after {
-            content: ''; display: inline-block; width: 16px; height: 16px;
-            border: 2px solid var(--text-secondary); border-top-color: transparent;
-            border-radius: 50%; animation: spin 0.8s linear infinite; margin-left: 0.5rem; vertical-align: middle;
+        .activity-loading { 
+            color: var(--text-secondary); padding: 2rem; text-align: center;
+            display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+        }
+        .spinner {
+            width: 18px; height: 18px;
+            border: 2px solid var(--border-color); border-top-color: var(--accent-primary);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         
@@ -167,12 +174,7 @@
         .activity-item {
             display: flex; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 8px;
             margin-bottom: 0.5rem; background: var(--bg-tertiary); align-items: flex-start;
-            transition: all 0.2s ease; border-left: 3px solid transparent;
-            animation: slideIn 0.3s ease;
-        }
-        @keyframes slideIn { 
-            from { opacity: 0; transform: translateX(-10px); } 
-            to { opacity: 1; transform: translateX(0); }
+            border-left: 3px solid transparent;
         }
         .activity-item:hover { background: var(--bg-primary); }
         .activity-item.success { border-left-color: var(--accent-green); }
@@ -207,22 +209,49 @@
             background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary);
             padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
             font-size: 0.8rem; font-weight: 500; transition: all 0.2s ease;
+            display: inline-flex; align-items: center; gap: 0.4rem;
         }
         .refresh-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--accent-primary); }
-        .refresh-btn.spinning { animation: spin 0.6s linear infinite; }
+        .refresh-btn .icon { transition: transform 0.3s ease; }
+        .refresh-btn.loading .icon { animation: spin 0.6s linear infinite; }
         
         .live-indicator {
             display: inline-flex; align-items: center; gap: 0.5rem;
-            font-size: 0.75rem; color: var(--accent-green); margin-left: 1rem;
+            font-size: 0.75rem; color: var(--accent-green);
         }
         .live-dot {
             width: 8px; height: 8px; background: var(--accent-green);
             border-radius: 50%; animation: pulse 2s infinite;
         }
+        .live-indicator.paused .live-dot { background: var(--text-secondary); animation: none; }
+        .live-indicator.paused { color: var(--text-secondary); }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
+        
+        .header-actions { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
+        
+        /* Fade transition for smooth updates */
+        .activity-log.updating { opacity: 0.7; transition: opacity 0.15s; }
+        
+        /* Setup reminder banner */
+        .setup-banner {
+            background: linear-gradient(135deg, rgba(210, 153, 34, 0.15), rgba(163, 113, 247, 0.15));
+            border: 1px solid var(--accent-orange);
+            border-radius: 8px; padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;
+        }
+        .setup-banner-icon { font-size: 1.5rem; }
+        .setup-banner-content { flex: 1; }
+        .setup-banner-title { font-weight: 600; color: var(--accent-orange); }
+        .setup-banner-text { font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.25rem; }
+        .setup-banner-btn {
+            background: var(--accent-orange); color: var(--bg-primary); border: none;
+            padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;
+            font-weight: 500; font-size: 0.9rem; transition: opacity 0.2s;
+        }
+        .setup-banner-btn:hover { opacity: 0.9; }
     </style>
 </head>
 <body>
@@ -236,6 +265,17 @@
             <h1>Semgrep → Linear Integration</h1>
             <p class="subtitle">Automatically create Linear issues from Semgrep security findings</p>
         </header>
+        
+        {% if not linear_connected and validation_errors %}
+        <div class="setup-banner">
+            <div class="setup-banner-icon">⚠️</div>
+            <div class="setup-banner-content">
+                <div class="setup-banner-title">Configuration Required</div>
+                <div class="setup-banner-text">Complete the setup wizard to connect to Linear and start receiving tickets.</div>
+            </div>
+            <a href="/setup" class="setup-banner-btn">Open Setup</a>
+        </div>
+        {% endif %}
         
         <div class="card">
             <div class="card-header">
@@ -344,12 +384,24 @@
         <div class="card">
             <div class="card-header">
                 <h2>📊 Activity Log</h2>
-                <span class="live-indicator"><span class="live-dot"></span>Live</span>
-                <button class="refresh-btn" id="refresh-btn" onclick="refreshActivities()" style="margin-left: auto;">↻ Refresh</button>
+                <div class="header-actions">
+                    <span class="live-indicator" id="live-indicator">
+                        <span class="live-dot"></span>
+                        <span class="live-text">Live</span>
+                    </span>
+                    <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">
+                        <span class="icon">↻</span> Refresh
+                    </button>
+                </div>
             </div>
-            <div id="activity-stats" class="activity-stats"></div>
+            <div id="activity-stats" class="activity-stats">
+                <div class="stat-box"><div class="stat-value webhooks">-</div><div class="stat-label">Webhooks</div></div>
+                <div class="stat-box"><div class="stat-value success">-</div><div class="stat-label">Tickets</div></div>
+                <div class="stat-box"><div class="stat-value error">-</div><div class="stat-label">Errors</div></div>
+                <div class="stat-box"><div class="stat-value">-</div><div class="stat-label">Total</div></div>
+            </div>
             <div id="activity-log" class="activity-log">
-                <div class="activity-loading">Loading activities</div>
+                <div class="activity-loading"><div class="spinner"></div> Loading activities...</div>
             </div>
         </div>
         
@@ -362,168 +414,322 @@
     </div>
     
     <script>
-        function copyToClipboard() {
-            const url = document.getElementById('webhook-url').textContent;
-            navigator.clipboard.writeText(url).then(() => {
-                const btn = document.querySelector('.copy-btn');
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = 'Copy', 2000);
-            });
-        }
+        // ========================================
+        // Activity Log Manager - Production Quality
+        // ========================================
         
-        function getIcon(type, status) {
-            const icons = {
-                'issue_created': '🎫',
-                'issue_skipped': '⏭️',
-                'issue_failed': '❌',
-                'webhook_received': '📥',
-                'scan_completed': '🔍',
-                'startup': '🚀',
-                'signature_missing': '🔐',
-                'error': '🚨',
-                'default': '📋'
-            };
-            return icons[type] || icons['default'];
-        }
-        
-        function formatTime(isoString) {
-            const date = new Date(isoString);
-            const now = new Date();
-            const diff = (now - date) / 1000;
+        const ActivityLog = {
+            // State
+            activities: [],
+            stats: null,
+            lastHash: null,
+            isLoading: false,
+            hasInitialized: false,
+            refreshInterval: null,
+            REFRESH_INTERVAL_MS: 8000, // 8 seconds
             
-            if (diff < 10) return 'just now';
-            if (diff < 60) return Math.floor(diff) + 's ago';
-            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        }
-        
-        function getSeverityTag(severity) {
-            if (!severity) return '';
-            const s = severity.toLowerCase();
-            return `<span class="activity-tag severity-${s}">${s}</span>`;
-        }
-        
-        function renderActivity(item) {
-            const details = item.details || {};
-            let detailsHtml = '';
+            // DOM Elements (cached)
+            elements: {
+                log: null,
+                stats: null,
+                refreshBtn: null,
+                liveIndicator: null
+            },
             
-            if (item.type === 'issue_created') {
-                detailsHtml = getSeverityTag(details.severity);
-                if (details.issue_id) detailsHtml += `<code>${details.issue_id}</code>`;
-                if (details.file) {
-                    const shortFile = details.file.split('/').slice(-2).join('/');
-                    detailsHtml += ` → <code>${shortFile}</code>`;
-                }
-                if (details.repo) detailsHtml += ` in ${details.repo}`;
-            } else if (item.type === 'issue_skipped') {
-                if (details.rule) detailsHtml = `Rule: <code>${details.rule}</code>`;
-                if (details.file) {
-                    const shortFile = details.file.split('/').slice(-2).join('/');
-                    detailsHtml += ` • ${shortFile}`;
-                }
-            } else if (item.type === 'webhook_received') {
-                if (details.method) detailsHtml = `Method: ${details.method}`;
-                if (details.finding_count) detailsHtml += ` • ${details.finding_count} findings`;
-            } else if (item.type === 'scan_completed') {
-                if (details.findings_count !== undefined) {
-                    detailsHtml = `${details.findings_count} findings detected`;
-                }
-            } else if (item.type === 'startup') {
-                if (details.public_url) detailsHtml = `<code>${details.public_url}</code>`;
-            } else if (details.error) {
-                detailsHtml = `<span style="color: var(--accent-red);">${details.error.substring(0, 120)}${details.error.length > 120 ? '...' : ''}</span>`;
-            } else if (details.file) {
-                const shortFile = details.file.split('/').slice(-2).join('/');
-                detailsHtml = `<code>${shortFile}</code>`;
-                if (details.rule) detailsHtml += ` • ${details.rule}`;
-            }
-            
-            return `
-                <div class="activity-item ${item.status}">
-                    <div class="activity-icon ${item.status}">${getIcon(item.type, item.status)}</div>
-                    <div class="activity-content">
-                        <div class="activity-message">${item.message}</div>
-                        ${detailsHtml ? `<div class="activity-details">${detailsHtml}</div>` : ''}
-                    </div>
-                    <div class="activity-time">${formatTime(item.timestamp)}</div>
-                </div>
-            `;
-        }
-        
-        let lastActivityCount = 0;
-        
-        async function refreshActivities(showSpinner = false) {
-            const logEl = document.getElementById('activity-log');
-            const statsEl = document.getElementById('activity-stats');
-            const refreshBtn = document.getElementById('refresh-btn');
-            
-            if (showSpinner) {
-                refreshBtn.classList.add('spinning');
-            }
-            
-            try {
-                const response = await fetch('/api/activity?limit=50');
-                const data = await response.json();
+            // Initialize
+            init() {
+                this.elements.log = document.getElementById('activity-log');
+                this.elements.stats = document.getElementById('activity-stats');
+                this.elements.refreshBtn = document.getElementById('refresh-btn');
+                this.elements.liveIndicator = document.getElementById('live-indicator');
                 
-                // Render stats with more detail
-                const stats = data.stats;
-                const webhookCount = stats.by_type?.webhook_received || 0;
-                const ticketsCreated = stats.by_type?.issue_created || 0;
+                // Initial load
+                this.fetchActivities(true);
                 
-                statsEl.innerHTML = `
-                    <div class="stat-box">
-                        <div class="stat-value webhooks">${webhookCount}</div>
-                        <div class="stat-label">Webhooks</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value success">${ticketsCreated}</div>
-                        <div class="stat-label">Tickets</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value error">${stats.errors}</div>
-                        <div class="stat-label">Errors</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">${stats.total}</div>
-                        <div class="stat-label">Total</div>
-                    </div>
+                // Start auto-refresh
+                this.startAutoRefresh();
+                
+                // Pause when tab is hidden, resume when visible
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        this.stopAutoRefresh();
+                        this.setLiveStatus(false);
+                    } else {
+                        this.startAutoRefresh();
+                        this.setLiveStatus(true);
+                        this.fetchActivities(false); // Refresh on return
+                    }
+                });
+            },
+            
+            // Compute hash for change detection
+            computeHash(data) {
+                const str = JSON.stringify(data);
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                return hash.toString();
+            },
+            
+            // Fetch activities from API
+            async fetchActivities(isInitial = false) {
+                if (this.isLoading) return;
+                this.isLoading = true;
+                
+                if (isInitial) {
+                    this.setRefreshLoading(true);
+                }
+                
+                try {
+                    const response = await fetch('/api/activity?limit=50');
+                    if (!response.ok) throw new Error('Failed to fetch');
+                    
+                    const data = await response.json();
+                    const newHash = this.computeHash(data);
+                    
+                    // Only update DOM if data changed
+                    if (newHash !== this.lastHash || isInitial) {
+                        this.activities = data.activities || [];
+                        this.stats = data.stats || {};
+                        this.lastHash = newHash;
+                        
+                        this.renderStats();
+                        this.renderActivities(isInitial);
+                    }
+                    
+                    this.hasInitialized = true;
+                    
+                } catch (error) {
+                    console.error('Activity fetch error:', error);
+                    if (!this.hasInitialized) {
+                        this.renderError();
+                    }
+                } finally {
+                    this.isLoading = false;
+                    this.setRefreshLoading(false);
+                }
+            },
+            
+            // Render stats
+            renderStats() {
+                const webhooks = this.stats.by_type?.webhook_received || 0;
+                const tickets = this.stats.by_type?.issue_created || 0;
+                const errors = this.stats.errors || 0;
+                const total = this.stats.total || 0;
+                
+                this.elements.stats.innerHTML = `
+                    <div class="stat-box"><div class="stat-value webhooks">${webhooks}</div><div class="stat-label">Webhooks</div></div>
+                    <div class="stat-box"><div class="stat-value success">${tickets}</div><div class="stat-label">Tickets</div></div>
+                    <div class="stat-box"><div class="stat-value error">${errors}</div><div class="stat-label">Errors</div></div>
+                    <div class="stat-box"><div class="stat-value">${total}</div><div class="stat-label">Total</div></div>
                 `;
-                
-                // Render activities
-                if (data.activities.length === 0) {
-                    logEl.innerHTML = `
+            },
+            
+            // Render activities
+            renderActivities(animate = false) {
+                if (this.activities.length === 0) {
+                    this.elements.log.innerHTML = `
                         <div class="activity-empty">
                             <div class="activity-empty-icon">📭</div>
                             <div>No activity yet</div>
                             <div style="font-size: 0.9rem; margin-top: 0.5rem;">Trigger a Semgrep scan to see webhook events here</div>
-                        </div>`;
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const html = this.activities.map(item => this.renderActivityItem(item)).join('');
+                this.elements.log.innerHTML = html;
+            },
+            
+            // Render single activity item
+            renderActivityItem(item) {
+                const details = item.details || {};
+                let detailsHtml = this.buildDetailsHtml(item.type, details);
+                
+                return `
+                    <div class="activity-item ${item.status}">
+                        <div class="activity-icon ${item.status}">${this.getIcon(item.type)}</div>
+                        <div class="activity-content">
+                            <div class="activity-message">${this.escapeHtml(item.message)}</div>
+                            ${detailsHtml ? `<div class="activity-details">${detailsHtml}</div>` : ''}
+                        </div>
+                        <div class="activity-time">${this.formatTime(item.timestamp)}</div>
+                    </div>
+                `;
+            },
+            
+            // Build details HTML based on event type
+            buildDetailsHtml(type, details) {
+                switch (type) {
+                    case 'issue_created':
+                        let html = this.getSeverityTag(details.severity);
+                        if (details.issue_id) html += `<code>${this.escapeHtml(details.issue_id)}</code>`;
+                        if (details.file) html += ` → <code>${this.escapeHtml(this.shortPath(details.file))}</code>`;
+                        if (details.repo) html += ` in ${this.escapeHtml(details.repo)}`;
+                        return html;
+                        
+                    case 'issue_skipped':
+                        let skipHtml = '';
+                        if (details.rule) skipHtml = `Rule: <code>${this.escapeHtml(details.rule)}</code>`;
+                        if (details.file) skipHtml += ` • ${this.escapeHtml(this.shortPath(details.file))}`;
+                        return skipHtml;
+                        
+                    case 'webhook_received':
+                        let webhookHtml = '';
+                        if (details.method) webhookHtml = `Method: ${details.method}`;
+                        if (details.finding_count) webhookHtml += ` • ${details.finding_count} findings`;
+                        return webhookHtml;
+                        
+                    case 'scan_completed':
+                        return details.findings_count !== undefined 
+                            ? `${details.findings_count} findings detected` 
+                            : '';
+                        
+                    case 'startup':
+                        return details.public_url 
+                            ? `<code>${this.escapeHtml(details.public_url)}</code>` 
+                            : '';
+                        
+                    default:
+                        if (details.error) {
+                            const errorText = details.error.substring(0, 120);
+                            return `<span style="color: var(--accent-red);">${this.escapeHtml(errorText)}${details.error.length > 120 ? '...' : ''}</span>`;
+                        }
+                        if (details.file) {
+                            let fileHtml = `<code>${this.escapeHtml(this.shortPath(details.file))}</code>`;
+                            if (details.rule) fileHtml += ` • ${this.escapeHtml(details.rule)}`;
+                            return fileHtml;
+                        }
+                        return '';
+                }
+            },
+            
+            // Render error state
+            renderError() {
+                this.elements.log.innerHTML = `
+                    <div class="activity-empty">
+                        <div class="activity-empty-icon">⚠️</div>
+                        <div>Failed to load activities</div>
+                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">Check your connection and try again</div>
+                    </div>
+                `;
+            },
+            
+            // Helper: Get icon for event type
+            getIcon(type) {
+                const icons = {
+                    'issue_created': '🎫',
+                    'issue_skipped': '⏭️',
+                    'issue_failed': '❌',
+                    'webhook_received': '📥',
+                    'scan_completed': '🔍',
+                    'startup': '🚀',
+                    'signature_missing': '🔐',
+                    'error': '🚨'
+                };
+                return icons[type] || '📋';
+            },
+            
+            // Helper: Format relative time
+            formatTime(isoString) {
+                const date = new Date(isoString);
+                const now = new Date();
+                const diff = (now - date) / 1000;
+                
+                if (diff < 10) return 'just now';
+                if (diff < 60) return Math.floor(diff) + 's ago';
+                if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+                if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            },
+            
+            // Helper: Severity tag
+            getSeverityTag(severity) {
+                if (!severity) return '';
+                const s = severity.toLowerCase();
+                return `<span class="activity-tag severity-${s}">${s}</span>`;
+            },
+            
+            // Helper: Shorten file path
+            shortPath(path) {
+                if (!path) return '';
+                const parts = path.split('/');
+                return parts.slice(-2).join('/');
+            },
+            
+            // Helper: Escape HTML
+            escapeHtml(text) {
+                if (!text) return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+            
+            // UI: Set refresh button loading state
+            setRefreshLoading(loading) {
+                if (loading) {
+                    this.elements.refreshBtn.classList.add('loading');
                 } else {
-                    // Only re-render if there are new activities
-                    if (data.activities.length !== lastActivityCount || showSpinner) {
-                        logEl.innerHTML = data.activities.map(renderActivity).join('');
-                        lastActivityCount = data.activities.length;
-                    }
+                    this.elements.refreshBtn.classList.remove('loading');
                 }
-            } catch (error) {
-                console.error('Failed to load activities:', error);
-                if (logEl.querySelector('.activity-loading')) {
-                    logEl.innerHTML = `
-                        <div class="activity-empty">
-                            <div class="activity-empty-icon">⚠️</div>
-                            <div>Failed to load activities</div>
-                        </div>`;
+            },
+            
+            // UI: Set live indicator status
+            setLiveStatus(isLive) {
+                if (isLive) {
+                    this.elements.liveIndicator.classList.remove('paused');
+                    this.elements.liveIndicator.querySelector('.live-text').textContent = 'Live';
+                } else {
+                    this.elements.liveIndicator.classList.add('paused');
+                    this.elements.liveIndicator.querySelector('.live-text').textContent = 'Paused';
                 }
-            } finally {
-                refreshBtn.classList.remove('spinning');
+            },
+            
+            // Auto-refresh management
+            startAutoRefresh() {
+                if (this.refreshInterval) return;
+                this.refreshInterval = setInterval(() => {
+                    this.fetchActivities(false);
+                }, this.REFRESH_INTERVAL_MS);
+                this.setLiveStatus(true);
+            },
+            
+            stopAutoRefresh() {
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
+                    this.refreshInterval = null;
+                }
             }
+        };
+        
+        // Manual refresh handler
+        function manualRefresh() {
+            ActivityLog.setRefreshLoading(true);
+            ActivityLog.fetchActivities(true);
         }
         
-        // Load activities on page load
-        refreshActivities(true);
+        // Copy webhook URL
+        function copyToClipboard() {
+            const urlEl = document.getElementById('webhook-url');
+            if (!urlEl) return;
+            
+            const url = urlEl.textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = originalText, 2000);
+            });
+        }
         
-        // Auto-refresh every 5 seconds
-        setInterval(() => refreshActivities(false), 5000);
+        // Initialize on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            ActivityLog.init();
+        });
     </script>
 </body>
 </html>
