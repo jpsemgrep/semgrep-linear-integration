@@ -3,6 +3,8 @@ Production middleware for authentication, rate limiting, and request validation.
 """
 import time
 import base64
+import json
+from functools import wraps
 import logging
 from functools import wraps
 from collections import defaultdict
@@ -143,23 +145,38 @@ def require_auth(config):
     return decorator
 
 
-def validate_webhook_payload(max_size_kb: int = 1024):
+def validate_webhook_payload(max_payload_kb: int):
     """
-    Decorator to validate webhook payload size.
+    Validates payload size and (optionally) JSON parseability without consuming the request stream.
+    IMPORTANT: uses request.get_data(cache=True) so downstream code can still read request.data / get_json().
     """
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            content_length = request.content_length
-            
-            if content_length and content_length > max_size_kb * 1024:
-                logger.warning(f"Webhook payload too large: {content_length} bytes")
-                return jsonify({"error": "Payload too large"}), 413
-            
-            return f(*args, **kwargs)
-        
-        return decorated_function
+    max_bytes = int(max_payload_kb) * 1024
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            # Only validate bodies for methods that send bodies
+            if request.method in ("POST", "PUT", "PATCH"):
+                raw = request.get_data(cache=True)  # <-- critical (do NOT use cache=False)
+
+                # Size check
+                if raw is not None and len(raw) > max_bytes:
+                    return jsonify({"error": "Payload too large"}), 413
+
+                # If content-type claims JSON, verify it's valid JSON
+                content_type = (request.headers.get("Content-Type") or "").lower()
+                if "application/json" in content_type:
+                    if not raw or raw.strip() == b"":
+                        return jsonify({"error": "Invalid JSON"}), 400
+                    try:
+                        json.loads(raw.decode("utf-8"))
+                    except Exception:
+                        return jsonify({"error": "Invalid JSON"}), 400
+
+            return fn(*args, **kwargs)
+        return wrapper
     return decorator
+
 
 
 def log_request():

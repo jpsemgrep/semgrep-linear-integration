@@ -6,6 +6,8 @@ import os
 import sys
 import json
 import logging
+import hmac
+import hashlib
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, render_template, redirect, g, make_response
 from .config import config
@@ -286,22 +288,22 @@ def ping():
 # ============================================
 # Webhook Endpoint (rate limited)
 # ============================================
-
 @app.route("/webhook", methods=["GET", "POST", "OPTIONS"])
 @rate_limit
 @validate_webhook_payload(config.WEBHOOK_MAX_PAYLOAD_SIZE_KB)
 def webhook():
     """Main webhook endpoint for Semgrep events."""
     global linear_client, webhook_handler
-    
+
     # Handle preflight OPTIONS request (CORS)
     if request.method == "OPTIONS":
         response = jsonify({"status": "ok"})
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        # IMPORTANT: must match the actual header the client sends
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Semgrep-Signature-256"
         return response, 200
-    
+
     # Handle GET request (connectivity test)
     if request.method == "GET":
         logger.info("Webhook GET request received (connectivity test)")
@@ -311,12 +313,12 @@ def webhook():
             "method": "GET",
             "info": "Send POST requests with Semgrep findings to create Linear issues"
         }), 200
-    
+
     # POST request - process webhook
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
     logger.info(f"Webhook POST received from {client_ip}")
     activity.log_activity("webhook_received", f"Webhook from {client_ip}", {"method": "POST"}, "info")
-    
+
     # Reload config and reinitialize if needed
     config.reload()
     if config.LINEAR_API_KEY and not webhook_handler:
@@ -327,75 +329,116 @@ def webhook():
             retry_delay=config.LINEAR_API_RETRY_DELAY
         )
         webhook_handler = WebhookHandler(linear_client)
-    
+
     if not webhook_handler:
         logger.warning("Webhook received but Linear not configured")
         return jsonify({"error": "Integration not configured"}), 503
-    
-    # Verify signature (required in production if secret is configured)
-    signature = request.headers.get("X-Semgrep-Signature-256", "")
-    if not webhook_handler.verify_signature(request.data, signature):
-        logger.warning("Invalid webhook signature")
-        activity.log_activity("signature_invalid", "Invalid webhook signature", {}, "error")
-        return jsonify({"error": "Invalid signature"}), 401
-    
+
+    # ============================================================
+    # Signature verification (SYSTEM CAVEAT: read RAW BODY FIRST)
+    # ============================================================
+    # cache=True is CRITICAL so parsing later doesn't see an empty stream.
+    raw_body: bytes = request.get_data(cache=True, as_text=False)
+
+    sig_header = request.headers.get("X-Semgrep-Signature-256", "") or ""
+    logger.info(f"sig_debug provided_raw='{sig_header}'")
+    logger.info(f"sig_debug payload_len={len(raw_body)} payload_preview={raw_body[:200]!r}")
+
+    secret_str = (getattr(config, "SEMGREP_WEBHOOK_SECRET", "") or "").strip()
+
+    if secret_str:
+        # Expect format: sha256=<hex>
+        if not sig_header.startswith("sha256="):
+            logger.warning("Invalid signature header format")
+            activity.log_activity("signature_invalid", "Invalid signature header format", {}, "error")
+            return jsonify({"error": "Invalid signature format"}), 401
+
+        provided_sig = sig_header[len("sha256="):].strip().lower()
+
+        expected_sig = hmac.new(
+            secret_str.encode("utf-8"),
+            raw_body,
+            hashlib.sha256
+        ).hexdigest().lower()
+
+        match = hmac.compare_digest(expected_sig, provided_sig)
+
+        logger.info(f"sig_debug provided_hash={provided_sig}")
+        logger.info(f"sig_debug expected={expected_sig}")
+        logger.info(f"sig_debug match={match}")
+
+        if not match:
+            logger.warning("Invalid webhook signature")
+            activity.log_activity("signature_invalid", "Invalid webhook signature", {}, "error")
+            return jsonify({"error": "Invalid signature"}), 401
+    else:
+        logger.info("Signature verification skipped: SEMGREP_WEBHOOK_SECRET not configured")
+
+    # ============================================================
+    # Option A: Parse JSON from the raw bytes we already verified
+    # ============================================================
+    if not raw_body:
+        return jsonify({"error": "Empty payload"}), 400
+
     try:
-        payload = request.get_json()
-        
-        if not payload:
-            return jsonify({"error": "Empty payload"}), 400
-        
+        payload = json.loads(raw_body.decode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Invalid JSON: {e} raw_preview={raw_body[:200]!r}")
+        activity.log_activity("webhook_error", "Invalid JSON payload", {}, "error")
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    try:
         results = []
-        
         logger.debug(f"Webhook payload type: {type(payload).__name__}")
-        
+
         # Handle array of findings
         if isinstance(payload, list):
             logger.info(f"Processing {len(payload)} items from array")
             for item in payload:
                 if isinstance(item, dict):
-                    if 'semgrep_finding' in item:
-                        result = webhook_handler.process_finding(item['semgrep_finding'])
-                    elif 'text' in item or 'username' in item:
+                    if "semgrep_finding" in item:
+                        result = webhook_handler.process_finding(item["semgrep_finding"])
+                    elif "text" in item or "username" in item:
                         continue  # Skip Slack notifications
                     else:
                         result = webhook_handler.process_finding(item)
                     results.append(result)
-            return jsonify({"status": "success", "processed": len(results), "results": results})
-        
+            return jsonify({"status": "success", "processed": len(results), "results": results}), 200
+
         # Handle dict payload
+        if not isinstance(payload, dict):
+            return jsonify({"error": "Invalid payload type"}), 400
+
         event_type = payload.get("type", "unknown")
-        
+
         if event_type == "semgrep_finding" or "semgrep_finding" in payload:
             finding = payload.get("semgrep_finding", payload.get("finding", payload))
-            result = webhook_handler.process_finding(finding)
-            results.append(result)
-            
+            results.append(webhook_handler.process_finding(finding))
+
         elif event_type == "semgrep_scan" or "semgrep_scan" in payload:
             scan = payload.get("semgrep_scan", payload.get("scan", payload))
-            result = webhook_handler.process_scan(scan)
-            results.append(result)
+            results.append(webhook_handler.process_scan(scan))
             for finding in payload.get("findings", []):
                 results.append(webhook_handler.process_finding(finding))
-                
+
         elif "findings" in payload:
             for finding in payload.get("findings", []):
                 results.append(webhook_handler.process_finding(finding))
-                
+
         elif "data" in payload and isinstance(payload.get("data"), dict):
             data = payload["data"]
             for finding in data.get("findings", [data]):
                 results.append(webhook_handler.process_finding(finding))
-                
+
         elif any(k in payload for k in ["rule", "severity", "check_id", "path"]):
             results.append(webhook_handler.process_finding(payload))
-            
+
         else:
             logger.warning(f"Unknown payload type: {event_type}, keys: {list(payload.keys())}")
             return jsonify({"warning": f"Unknown event type: {event_type}"}), 200
-        
-        return jsonify({"status": "success", "processed": len(results), "results": results})
-        
+
+        return jsonify({"status": "success", "processed": len(results), "results": results}), 200
+
     except Exception as e:
         logger.exception(f"Webhook error: {e}")
         activity.log_activity("webhook_error", str(e)[:200], {}, "error")
