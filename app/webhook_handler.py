@@ -15,35 +15,69 @@ class WebhookHandler:
     def __init__(self, linear_client: LinearClient):
         self.linear_client = linear_client
     
-    def verify_signature(self, payload: bytes, signature: str) -> bool:
-        """Verify the Semgrep webhook signature."""
-        # Reload config to get latest values from .env file
+    def verify_signature(self, payload: bytes, headers) -> bool:
+        """
+        Verify Semgrep webhook signature.
+        Compatible with ALB + Semgrep header behavior.
+        """
+
+        import hmac
+        import hashlib
+
         config.reload()
-        
         secret = config.SEMGREP_WEBHOOK_SECRET
-        logger.info(f"Signature verification: secret_configured={bool(secret)}, signature_provided={bool(signature)}")
-        
-        # If no secret configured, skip verification entirely
-        if not secret or secret.strip() == "":
-            logger.warning("No webhook secret configured - skipping signature verification")
+
+        logger.info(
+            f"Signature verification: secret_configured={bool(secret)}"
+        )
+
+        # 🔹 If no secret configured, skip verification (dev mode)
+        if not secret or not secret.strip():
+            logger.warning("No webhook secret configured — skipping signature verification")
             return True
-        
-        # Secret is configured, so signature is required
-        if not signature:
-            logger.error("No signature provided in request but secret is configured")
-            activity.log_activity("signature_missing", "No signature provided but secret is configured", {}, "error")
+
+        # 🔹 Log all headers ONCE (critical for ALB debugging)
+        logger.info(f"ALL_HEADERS={dict(headers)}")
+
+        # 🔹 Semgrep may send any of these (ALB may normalize)
+        raw_signature = (
+            headers.get("X-Semgrep-Signature-256")
+            or headers.get("X-Semgrep-Signature")
+            or headers.get("X-Hub-Signature-256")
+            or headers.get("X-Hub-Signature")
+            or ""
+        )
+
+        logger.info(f"sig_debug provided_raw='{raw_signature}'")
+
+        # 🔹 Must exist if secret is configured
+        if not raw_signature:
+            logger.error("Signature header missing")
             return False
-        
-        expected_signature = hmac.new(
-            config.SEMGREP_WEBHOOK_SECRET.encode(),
+
+        # 🔹 Strip prefix if present
+        provided_hash = raw_signature.replace("sha256=", "").strip()
+        logger.info(f"sig_debug provided_hash={provided_hash}")
+
+        # 🔹 Compute expected HMAC
+        expected_hash = hmac.new(
+            secret.encode("utf-8"),
             payload,
             hashlib.sha256
         ).hexdigest()
-        
-        # Signature format: sha256=<hash>
-        provided_hash = signature.replace("sha256=", "")
-        
-        return hmac.compare_digest(expected_signature, provided_hash)
+
+        logger.info(f"sig_debug expected={expected_hash}")
+        logger.info(
+            f"sig_debug payload_len={len(payload)} payload_preview={payload[:200]!r}"
+        )
+
+        # 🔹 Constant-time compare
+        match = hmac.compare_digest(expected_hash, provided_hash)
+        logger.info(f"sig_debug match={match}")
+
+        return match
+
+
     
     def process_finding(self, finding: dict) -> Optional[dict]:
         """Process a Semgrep finding and create a Linear issue."""
